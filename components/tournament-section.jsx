@@ -88,17 +88,24 @@ export async function TournamentSection({ title, status, limit = 6 }) {
     let query = supabase
       .from("tournaments")
       .select(`
-        *,
-        tournament_participants(count)
+        id,
+        name,
+        description,
+        game,
+        max_participants,
+        current_participants,
+        status,
+        start_date,
+        prize_pool,
+        entry_fee,
+        created_at
       `)
       .order("created_at", { ascending: false })
       .limit(limit)
 
     if (status === "upcoming") {
-      // Show tournaments that haven't started yet
       query = query.gt("start_date", now)
     } else if (status === "ongoing") {
-      // Show tournaments that have started but aren't completed
       query = query.lte("start_date", now).neq("status", "completed")
     } else if (status) {
       query = query.eq("status", status)
@@ -110,10 +117,7 @@ export async function TournamentSection({ title, status, limit = 6 }) {
       throw result.error
     }
 
-    tournaments = result.data?.map((tournament) => ({
-      ...tournament,
-      current_participants: tournament.tournament_participants?.[0]?.count || 0,
-    }))
+    tournaments = result.data
   } catch (e) {
     console.warn("Database not available, using fallback data:", e.message)
     error = e

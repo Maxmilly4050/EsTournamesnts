@@ -1,6 +1,62 @@
-import { CheckCircle, XCircle, AlertTriangle, Clock, Trophy, Flag, Eye, MessageSquare, BarChart3 } from "lucide-react"
+"use client"
+
+import {
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Clock,
+  Trophy,
+  Flag,
+  Eye,
+  MessageSquare,
+  BarChart3,
+  Settings,
+} from "lucide-react"
+import { useState } from "react"
 
 export function TournamentDashboard({ tournament, matchResults, disputes, user }) {
+  const [selectedMatch, setSelectedMatch] = useState(null)
+  const [showScreenshots, setShowScreenshots] = useState(false)
+  const [adminDecision, setAdminDecision] = useState("")
+
+  const handleResultDecision = async (resultId, decision, winnerId = null) => {
+    try {
+      const response = await fetch("/api/admin/match-results", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resultId,
+          decision,
+          winnerId,
+          adminNotes: adminDecision,
+        }),
+      })
+
+      if (response.ok) {
+        // Refresh the page or update state
+        window.location.reload()
+      }
+    } catch (error) {
+      console.error("Error processing result:", error)
+    }
+  }
+
+  const handleSetRoundDeadline = async (roundId, deadline) => {
+    try {
+      const response = await fetch("/api/admin/set-deadline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roundId, deadline }),
+      })
+
+      if (response.ok) {
+        window.location.reload()
+      }
+    } catch (error) {
+      console.error("Error setting deadline:", error)
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
@@ -86,12 +142,65 @@ export function TournamentDashboard({ tournament, matchResults, disputes, user }
         </div>
       </div>
 
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-white">Round Management</h2>
+          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+            <Settings className="w-4 h-4" />
+            Tournament Settings
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {tournament.rounds?.map((round) => (
+            <div key={round.id} className="bg-slate-700/30 rounded-lg p-4">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <h3 className="font-medium text-white">{round.round_name}</h3>
+                  <p className="text-slate-400 text-sm">Round {round.round_number}</p>
+                </div>
+                <span
+                  className={`px-2 py-1 rounded text-xs ${
+                    round.status === "active"
+                      ? "bg-green-500/20 text-green-400"
+                      : round.status === "completed"
+                        ? "bg-gray-500/20 text-gray-400"
+                        : "bg-yellow-500/20 text-yellow-400"
+                  }`}
+                >
+                  {round.status}
+                </span>
+              </div>
+
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Deadline:</span>
+                  <span className="text-white">
+                    {round.deadline ? new Date(round.deadline).toLocaleDateString() : "Not set"}
+                  </span>
+                </div>
+
+                {round.status === "active" && (
+                  <div className="mt-3">
+                    <input
+                      type="datetime-local"
+                      className="w-full bg-slate-600 text-white rounded px-2 py-1 text-xs"
+                      onChange={(e) => handleSetRoundDeadline(round.id, e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {matchResults.length > 0 && (
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Pending Match Results</h2>
+          <h2 className="text-xl font-semibold text-white mb-4">Match Results Review</h2>
           <div className="space-y-4">
             {matchResults
-              .filter((result) => result.status === "pending")
+              .filter((result) => result.status === "pending" || result.requires_admin_review)
               .map((result) => (
                 <div key={result.id} className="bg-slate-700/30 rounded-lg p-4">
                   <div className="flex justify-between items-start mb-3">
@@ -102,29 +211,99 @@ export function TournamentDashboard({ tournament, matchResults, disputes, user }
                       <p className="text-slate-400 text-sm">
                         {result.matches?.player1?.username} vs {result.matches?.player2?.username}
                       </p>
+                      {result.requires_admin_review && (
+                        <span className="inline-flex items-center gap-1 text-red-400 text-sm mt-1">
+                          <AlertTriangle className="w-4 h-4" />
+                          Conflicting Results - Admin Review Required
+                        </span>
+                      )}
                     </div>
                     <div className="flex gap-2">
-                      <button className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">
+                      <button
+                        onClick={() => setSelectedMatch(result)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+                      >
+                        <Eye className="w-4 h-4 inline mr-1" />
+                        Review
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div className="bg-slate-600/30 rounded p-3">
+                      <h4 className="text-white font-medium mb-2">{result.matches?.player1?.username}</h4>
+                      {result.player1_screenshot_url ? (
+                        <div>
+                          <img
+                            src={result.player1_screenshot_url || "/placeholder.svg"}
+                            alt="Player 1 Result"
+                            className="w-full h-32 object-cover rounded mb-2"
+                          />
+                          <p className="text-sm text-slate-300">
+                            Submitted: {new Date(result.player1_submitted_at).toLocaleString()}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="h-32 bg-slate-700 rounded flex items-center justify-center">
+                          <span className="text-slate-400">No screenshot submitted</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-600/30 rounded p-3">
+                      <h4 className="text-white font-medium mb-2">{result.matches?.player2?.username}</h4>
+                      {result.player2_screenshot_url ? (
+                        <div>
+                          <img
+                            src={result.player2_screenshot_url || "/placeholder.svg"}
+                            alt="Player 2 Result"
+                            className="w-full h-32 object-cover rounded mb-2"
+                          />
+                          <p className="text-sm text-slate-300">
+                            Submitted: {new Date(result.player2_submitted_at).toLocaleString()}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="h-32 bg-slate-700 rounded flex items-center justify-center">
+                          <span className="text-slate-400">No screenshot submitted</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 p-3 bg-slate-600/20 rounded">
+                    <textarea
+                      placeholder="Add admin notes (optional)..."
+                      value={adminDecision}
+                      onChange={(e) => setAdminDecision(e.target.value)}
+                      className="w-full bg-slate-700 text-white rounded px-3 py-2 text-sm mb-3"
+                      rows={2}
+                    />
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleResultDecision(result.id, "approve", result.matches?.player1?.id)}
+                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                      >
                         <CheckCircle className="w-4 h-4 inline mr-1" />
-                        Approve
+                        Declare {result.matches?.player1?.username} Winner
                       </button>
-                      <button className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm">
+                      <button
+                        onClick={() => handleResultDecision(result.id, "approve", result.matches?.player2?.id)}
+                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                      >
+                        <CheckCircle className="w-4 h-4 inline mr-1" />
+                        Declare {result.matches?.player2?.username} Winner
+                      </button>
+                      <button
+                        onClick={() => handleResultDecision(result.id, "reject")}
+                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+                      >
                         <XCircle className="w-4 h-4 inline mr-1" />
-                        Reject
+                        Request Rematch
                       </button>
                     </div>
                   </div>
-                  <div className="text-sm text-slate-300">
-                    Winner: {result.winner_profile?.username} | Score: {result.player1_score}-{result.player2_score}
-                  </div>
-                  {result.screenshot_url && (
-                    <div className="mt-2">
-                      <button className="text-blue-400 hover:text-blue-300 text-sm flex items-center gap-1">
-                        <Eye className="w-4 h-4" />
-                        View Screenshot
-                      </button>
-                    </div>
-                  )}
                 </div>
               ))}
           </div>
@@ -172,6 +351,28 @@ export function TournamentDashboard({ tournament, matchResults, disputes, user }
           </div>
         </div>
       )}
+
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
+        <h2 className="text-xl font-semibold text-white mb-4">Tournament Timeline & Logs</h2>
+        <div className="space-y-3">
+          {tournament.logs?.map((log) => (
+            <div key={log.id} className="flex items-start gap-3 p-3 bg-slate-700/20 rounded">
+              <div className="w-2 h-2 bg-blue-400 rounded-full mt-2"></div>
+              <div className="flex-1">
+                <p className="text-white text-sm">{log.description}</p>
+                <p className="text-slate-400 text-xs mt-1">{new Date(log.created_at).toLocaleString()}</p>
+              </div>
+            </div>
+          ))}
+
+          {(!tournament.logs || tournament.logs.length === 0) && (
+            <div className="text-center py-8 text-slate-400">
+              <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p>No tournament activity yet</p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

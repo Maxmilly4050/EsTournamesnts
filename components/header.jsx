@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useRouter } from "next/navigation"
 import { useTransition, useEffect, useState, useRef } from "react"
+import { NotificationCenter } from "./notification-center"
 
 // List of admin user IDs - in production, this would be stored in database
 const ADMIN_USER_IDS = [
@@ -367,6 +368,8 @@ export function Header() {
                     </Button>
                   </Link>
                 )}
+
+                <NotificationCenter user={user} />
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

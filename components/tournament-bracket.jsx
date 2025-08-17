@@ -24,6 +24,76 @@ export function TournamentBracket({ tournament, isOrganizer, currentUser }) {
     fetchParticipants()
   }, [tournament])
 
+  const setMatchWinner = async (matchId, winnerId) => {
+    if (!isOrganizer) return
+
+    try {
+      // Update the match with winner
+      const { error } = await supabase
+        .from("matches")
+        .update({
+          winner_id: winnerId,
+          status: "completed",
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", matchId)
+
+      if (error) {
+        console.error("Error setting winner:", error)
+        alert("Failed to set winner")
+        return
+      }
+
+      // Call bracket progression API to advance winner
+      const response = await fetch("/api/bracket/advance-winner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchId, winnerId }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to advance winner")
+      }
+
+      const result = await response.json()
+
+      if (result.tournamentComplete) {
+        alert(`🏆 Tournament Complete! Winner: ${getPlayerName(result.winner)}`)
+      }
+
+      router.refresh()
+    } catch (error) {
+      console.error("Error:", error)
+      alert("An unexpected error occurred")
+    }
+  }
+
+  useEffect(() => {
+    if (!tournament.id) return
+
+    // Subscribe to match updates
+    const matchSubscription = supabase
+      .channel(`tournament-${tournament.id}-matches`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "matches",
+          filter: `tournament_id=eq.${tournament.id}`,
+        },
+        (payload) => {
+          console.log("Match updated:", payload)
+          router.refresh()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      matchSubscription.unsubscribe()
+    }
+  }, [tournament.id, router])
+
   const generateBracket = async () => {
     if (!isOrganizer) return
 
@@ -97,52 +167,6 @@ export function TournamentBracket({ tournament, isOrganizer, currentUser }) {
       alert("An unexpected error occurred")
     } finally {
       setLoading(false)
-    }
-  }
-
-  const setMatchWinner = async (matchId, winnerId) => {
-    if (!isOrganizer) return
-
-    try {
-      // Update the match with winner
-      const { error } = await supabase
-        .from("matches")
-        .update({
-          winner_id: winnerId,
-          status: "completed",
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", matchId)
-
-      if (error) {
-        console.error("Error setting winner:", error)
-        alert("Failed to set winner")
-        return
-      }
-
-      // Find the next round match and advance winner
-      const currentMatch = tournament.matches.find((m) => m.id === matchId)
-      if (currentMatch) {
-        const nextRound = currentMatch.round + 1
-        const nextMatchNumber = Math.ceil(currentMatch.match_number / 2)
-
-        const nextMatch = tournament.matches.find((m) => m.round === nextRound && m.match_number === nextMatchNumber)
-
-        if (nextMatch) {
-          const isFirstSlot = currentMatch.match_number % 2 === 1
-          const updateField = isFirstSlot ? "player1_id" : "player2_id"
-
-          await supabase
-            .from("matches")
-            .update({ [updateField]: winnerId })
-            .eq("id", nextMatch.id)
-        }
-      }
-
-      router.refresh()
-    } catch (error) {
-      console.error("Error:", error)
-      alert("An unexpected error occurred")
     }
   }
 

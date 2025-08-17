@@ -478,3 +478,5 @@ export function MatchResultSubmission({ match, currentUser, onResultSubmitted })
     </Card>
   )
 }
+
+export default MatchResultSubmission
