@@ -16,6 +16,8 @@ export function TournamentDetails({ tournament, user, isParticipant }) {
   const [joined, setJoined] = useState(isParticipant)
   const [error, setError] = useState(null)
 
+  const actualParticipantCount = tournament.tournament_participants?.length || tournament.current_participants || 0
+
   const handleJoinTournament = async () => {
     if (!user) {
       router.push("/auth/login")
@@ -113,7 +115,7 @@ export function TournamentDetails({ tournament, user, isParticipant }) {
     })
   }
 
-  const canJoin = tournament.status === "upcoming" && tournament.current_participants < tournament.max_participants
+  const canJoin = tournament.status === "upcoming" && actualParticipantCount < tournament.max_participants
   const isOrganizer = tournament.created_by === user?.id || tournament.organizer_id === user?.id
 
   return (
@@ -157,7 +159,7 @@ export function TournamentDetails({ tournament, user, isParticipant }) {
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Participants ({tournament.current_participants}/{tournament.max_participants})
+                Participants ({actualParticipantCount}/{tournament.max_participants})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -180,8 +182,8 @@ export function TournamentDetails({ tournament, user, isParticipant }) {
                   ))
                 ) : (
                   <p className="text-gray-400 col-span-2 text-center py-8">
-                    {tournament.current_participants > 0
-                      ? `${tournament.current_participants} participants registered`
+                    {actualParticipantCount > 0
+                      ? `${actualParticipantCount} participants registered`
                       : "No participants yet. Be the first to join!"}
                   </p>
                 )}
@@ -227,9 +229,7 @@ export function TournamentDetails({ tournament, user, isParticipant }) {
                 </Button>
               ) : (
                 <Button disabled className="w-full">
-                  {tournament.current_participants >= tournament.max_participants
-                    ? "Tournament Full"
-                    : "Registration Closed"}
+                  {actualParticipantCount >= tournament.max_participants ? "Tournament Full" : "Registration Closed"}
                 </Button>
               )}
             </CardContent>

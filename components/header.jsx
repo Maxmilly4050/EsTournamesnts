@@ -226,7 +226,15 @@ export function Header() {
       setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      try {
+        if (subscription && typeof subscription.unsubscribe === "function") {
+          subscription.unsubscribe()
+        }
+      } catch (error) {
+        console.error("Error unsubscribing from auth state changes:", error)
+      }
+    }
   }, [supabase.auth])
 
   const SignOutButton = () => {

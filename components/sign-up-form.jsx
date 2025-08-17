@@ -1,25 +1,22 @@
 "use client"
 
-import { useActionState } from "react"
-import { useFormStatus } from "react-dom"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { signUp, signInWithGoogle } from "@/lib/actions"
 
-function SubmitButton() {
-  const { pending } = useFormStatus()
-
+function SubmitButton({ isLoading }) {
   return (
     <Button
       type="submit"
-      disabled={pending}
+      disabled={isLoading}
       className="w-full bg-blue-600 hover:bg-blue-700 text-white py-6 text-lg font-medium rounded-lg h-[60px]"
     >
-      {pending ? (
+      {isLoading ? (
         <>
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           Creating account...
@@ -94,7 +91,8 @@ function GoogleSignUpButton() {
 
 export default function SignUpForm() {
   const router = useRouter()
-  const [state, formAction] = useActionState(signUp, null)
+  const [state, setState] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
 
   // Handle successful signup
   useEffect(() => {
@@ -102,6 +100,23 @@ export default function SignUpForm() {
       router.push("/auth/login?message=Check your email to confirm your account")
     }
   }, [state, router])
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setIsLoading(true)
+    setState(null)
+
+    const formData = new FormData(event.target)
+
+    try {
+      const result = await signUp(null, formData)
+      setState(result)
+    } catch (error) {
+      setState({ error: "An error occurred during sign up. Please try again." })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
     <div className="w-full max-w-md space-y-8">
@@ -123,7 +138,7 @@ export default function SignUpForm() {
         </div>
       </div>
 
-      <form action={formAction} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6">
         {state?.error && (
           <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded">{state.error}</div>
         )}
@@ -202,7 +217,7 @@ export default function SignUpForm() {
           </div>
         </div>
 
-        <SubmitButton />
+        <SubmitButton isLoading={isLoading} />
 
         <div className="text-center text-gray-400">
           Already have an account?{" "}
